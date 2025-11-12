@@ -1,0 +1,16 @@
+grid:
+  nx: 64
+  ny: 64
+  dx: 100.0
+  dy: 100.0
+
+runtime:
+  dt: 60.0
+  t_end: 3600.0
+  output_dir: outputs/nicosia_v2_heat
+
+core: heat
+
+era5:
+  path: data/era5_sample.nc
+  time_index: 0

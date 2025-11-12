@@ -1,0 +1,23 @@
+grid:
+  nx: 64
+  ny: 64
+  dx: 100.0
+  dy: 100.0
+
+runtime:
+  dt: 5.0
+  t_end: 1200.0
+  output_dir: outputs/nicosia_v2_sw
+
+core: sw
+
+params:
+  g: 9.81
+  f: 1.0e-4
+  nu: 5.0e-3
+  h0: 1.0
+  wind_scale: 0.5 
+
+era5:
+  path: data/era5_sample.nc
+  time_index: 0

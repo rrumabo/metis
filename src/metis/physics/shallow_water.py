@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 # utilities for finite differences
 def _ddx(f: np.ndarray, dx: float) -> np.ndarray:
@@ -119,7 +119,7 @@ def _rusanov_flux_y(h, hu, hv, g: float, hmin: float, u_cap: float):
     return Gh, Ghu, Ghv
 
 
-# ----------------------- RHS: shallow-water ------------------------
+# RHS: shallow-water
 def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     """
     Rusanov/Godunov shallow-water RHS on periodic grid.
@@ -130,7 +130,7 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     """
     h, u, v = Y[0], Y[1], Y[2]
 
-    # --- sanitize state to avoid NaN/Inf & extreme values ---
+# sanitize state to avoid NaN/Inf & extreme values
     hmin = float(p.get("hmin", 1e-4))
     u_cap = float(p.get("u_cap", 30.0))
     h = np.nan_to_num(h, nan=1.0, posinf=1.0, neginf=1.0)
@@ -148,16 +148,16 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     Dv   = float(p.get("Dv", 0.0))
     Fh_p = p.get("Fh", 0.0)
 
-    # Conservative variables
+# Conservative variables
     h_safe = np.maximum(h, hmin)
     hu = h * u
     hv = h * v
 
-    # Numerical fluxes
+# Numerical fluxes
     Fh, Fhu, Fhv = _rusanov_flux_x(h, hu, hv, g, hmin, u_cap)
     Gh, Ghu, Ghv = _rusanov_flux_y(h, hu, hv, g, hmin, u_cap)
 
-    # Divergence of fluxes -> conservative tendencies
+# Divergence of fluxes -> conservative tendencies
     div_x_h  = (Fh  - np.roll(Fh,  1, axis=1)) / dx
     div_x_hu = (Fhu - np.roll(Fhu, 1, axis=1)) / dx
     div_x_hv = (Fhv - np.roll(Fhv, 1, axis=1)) / dx
@@ -170,7 +170,7 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     dhu_dt_cons = -(div_x_hu + div_y_hu)
     dhv_dt_cons = -(div_x_hv + div_y_hv)
 
-    # Sources: Coriolis, viscosity, linear drag
+# Sources: Coriolis, viscosity, linear drag
     cor_hu = -f * h * v
     cor_hv =  f * h * u
 
@@ -183,7 +183,7 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     dhu_dt = dhu_dt_cons + cor_hu + visc_hu + drag_hu
     dhv_dt = dhv_dt_cons + cor_hv + visc_hv + drag_hv
 
-    # External mass forcing Fh (scalar, array, or None)
+# External mass forcing Fh (scalar, array, or None)
     if isinstance(Fh_p, np.ndarray):
         dhdt = dhdt_cons + Fh_p
     elif Fh_p is None:
@@ -191,7 +191,7 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     else:
         dhdt = dhdt_cons + float(Fh_p)
 
-    # Convert conservative momentum tendencies -> velocity tendencies
+# Convert conservative momentum tendencies -> velocity tendencies
     h_safe = np.maximum(h, hmin)
     dudt = (dhu_dt - u * dhdt) / h_safe
     dvdt = (dhv_dt - v * dhdt) / h_safe
@@ -203,7 +203,7 @@ def rhs_sw_2d(t: float, Y: np.ndarray, p: Dict) -> np.ndarray:
     return np.stack([dhdt, dudt, dvdt], axis=0)
 
 
-# ----------------------- time stepping + demo -----------------------
+# time stepping + demo
 def forward_euler(rhs, Y0: np.ndarray, params: Dict,
                   dt: float, steps: int) -> np.ndarray:
     """Simple forward-Euler integrator for Y_t = rhs(t, Y, params)."""
@@ -216,9 +216,9 @@ def forward_euler(rhs, Y0: np.ndarray, params: Dict,
     return Y
 
 
-def make_initial_state(nx: int, ny: int,
-                       h0: float = 1.0,
-                       bump_amp: float = 0.05) -> np.ndarray:
+def make_initial_sw_state(nx: int, ny: int,
+                        h0: float = 1.0,
+                        bump_amp: float = 0.05) -> np.ndarray:
     """
     Simple initial condition:
     - base depth h0
@@ -238,23 +238,26 @@ def make_initial_state(nx: int, ny: int,
     return Y0
 
 
-def run_sw_demo(nx: int, ny: int,
+def run_shallow_water(nx: int, ny: int,
                 dx: float, dy: float,
                 dt: float, t_end: float,
-                params: Dict) -> np.ndarray:
+                params: Dict,
+                Y0: Optional[np.ndarray] = None) -> np.ndarray:
     """
-    Run a shallow-water demo and return final (h, u, v) fields.
+    Run a shallow-water solver and return final (h, u, v) fields.
 
     Parameters in `params`:
         g, f, nu, Du, Dv, h0, bump_amp, hmin, u_cap, Fh, ...
+    Y0: optional initial state array (3, ny, nx). If None, uses default initial condition.
     """
     p = dict(params)  # copy
     p["dx"] = dx
     p["dy"] = dy
 
-    h0 = float(p.get("h0", 1.0))
-    bump_amp = float(p.get("bump_amp", 0.05))
-    Y0 = make_initial_state(nx, ny, h0=h0, bump_amp=bump_amp)
+    if Y0 is None:
+        h0 = float(p.get("h0", 1.0))
+        bump_amp = float(p.get("bump_amp", 0.05))
+        Y0 = make_initial_sw_state(nx, ny, h0=h0, bump_amp=bump_amp)
 
     steps = int(t_end / dt)
     Y_final = forward_euler(rhs_sw_2d, Y0, p, dt, steps)

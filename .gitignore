@@ -88,3 +88,6 @@ __marimo__/
 .venv/
 outputs/
 .ipynb_checkpoints/
+
+# data area (local only)
+data/*.nc
